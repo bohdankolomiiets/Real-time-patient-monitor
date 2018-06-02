@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Patient distributed monitoring system - WebSocket client PoC</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="text/javascript" src="/canvasjs.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script type="text/javascript">
+
+    var charts = {};
+    var samplesNumber = 5000;
+    var server = 'http://localhost:3000';
+    var apiHost = `${server}/api`;
+    var apiArchive = `${apiHost}/archive`;
+    var apiDownloadArchive = `${apiArchive}/download`;
+
+    function initChart(key)  {
+	  charts[key] = { dataPoints: [], x: 0 };
+      var chart = new CanvasJS.Chart("chart_container_" + key,
+	    {
+	      title: { text: "Live Monitoring Curve: " + key },			
+          data: [{ type: "line", dataPoints: charts[key].dataPoints }]
+	    }
+	  );
+	  charts[key].chart = chart;
+    }
+    function updateChart(key, samples)  {
+      if (!(key in charts))
+        return;
+      
+      if(charts[key].dataPoints.length > samplesNumber) {
+        charts[key].dataPoints.splice(0,samples.length);
+      }
+      for (var i = 0; i < samples.length; i++) {
+        charts[key].dataPoints.push({ x: charts[key].x++, y: samples[i] });
+      }
+
+      charts[key].chart.render();		
+    }
+    function generatePatientHtml(patientId) {
+      console.log('generatePatientHtml', patientId);
+      var patientBlock = document.createElement('div');
+      patientBlock.id = patientId;
+      patientBlock.className = 'patient-block';
+      
+      var header = document.createElement('h3');
+      header.id = 'patient_id';
+      header.innerText = patientId;
+      
+      var parameters = document.createElement('div');
+      parameters.id = 'parameters';
+      parameters.innerHTML = `HR:\n<div id="${patientId}_hr_value"></div>`;
+
+      //curves
+      var curves = document.createElement('div');
+      curves.id = 'curves';
+      var mlii = document.createElement('div');
+      mlii.id = `chart_container_${patientId}_MLII`;
+      mlii.className = 'plot';
+      var v5 = document.createElement('div');
+      v5.id = `chart_container_${patientId}_V5`;
+      v5.className = 'plot';
+      curves.appendChild(mlii);
+      curves.appendChild(v5);
+
+      patientBlock.appendChild(header);
+      patientBlock.appendChild(parameters);
+      patientBlock.appendChild(curves);
+      console.log('patientBlock', patientBlock);
+
+      document.body.appendChild(patientBlock);
+
+      initChart(`${patientId}_MLII`);
+      initChart(`${patientId}_V5`);
+    }
+    
+    function prependSaveButtonToPatientHtml(patientId) {
+        var buttonId = `btn_save_${patientId}`;
+        $(`#${patientId}`).prepend(`
+            <button id="${buttonId}">Save to Exel</button>
+        `);
+        $(`#${buttonId}`).click(() => {
+            $.get(apiDownloadArchive, {userId: patientId},(filePath, status) => {
+                var downloadUrl = `${server}/${filePath}`;
+                console.log(`download ${patientId} data`, downloadUrl, status);
+                window.open(downloadUrl, "_blank")
+            });
+        });
+    }
+
+    $(function(){
+        $.get(apiArchive, (data, status) => {
+            console.log(data, status);
+            if(data == null)
+                return;
+            data.forEach(el => {
+                generatePatientHtml(el.userId);
+                prependSaveButtonToPatientHtml(el.userId);
+                if ('hr' in el) {
+                    document.getElementById(`${el.userId}_hr_value`).innerHTML = el.hr;
+                }	
+                if ('mlii' in el) {
+                updateChart(`${el.userId}_MLII`, el.mlii);
+                }
+                if ('v5' in el) {
+                updateChart(`${el.userId}_V5`, el.v5);
+                }
+            });
+        });
+    });
+
+  </script>
+</head>
+<body>
+  <h1>Patient distributed monitoring system - Archive</h1>
+</body>
+</html>

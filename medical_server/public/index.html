@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Patient distributed monitoring system - WebSocket client PoC</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="text/javascript" src="/canvasjs.min.js"></script>
+  <script type="text/javascript">
+
+    var charts = {};
+    var samplesNumber = 5000;
+	
+    function initChart(key)  {
+	  charts[key] = { dataPoints: [], x: 0 };
+      var chart = new CanvasJS.Chart("chart_container_" + key,
+	    {
+	      title: { text: "Live Monitoring Curve: " + key },			
+          data: [{ type: "line", dataPoints: charts[key].dataPoints }]
+	    }
+	  );
+	  charts[key].chart = chart;
+    }
+	
+    function updateChart(key, samples)  {
+      if (!(key in charts))
+        return;
+      
+      if(charts[key].dataPoints.length > samplesNumber) {
+        charts[key].dataPoints.splice(0,samples.length);
+      }
+      for (var i = 0; i < samples.length; i++) {
+        charts[key].dataPoints.push({ x: charts[key].x++, y: samples[i] });
+      }
+
+      charts[key].chart.render();		
+    }
+
+    function generatePatientHtml(patientId) {
+      console.log('generatePatientHtml', patientId);
+      var patientBlock = document.createElement('div');
+      patientBlock.id = patientId;
+      patientBlock.className = 'patient-block';
+      
+      var header = document.createElement('h3');
+      header.id = 'patient_id';
+      header.innerText = patientId;
+      
+      var parameters = document.createElement('div');
+      parameters.id = 'parameters';
+      parameters.innerHTML = `HR:\n<div id="${patientId}_hr_value"></div>`;
+
+      //curves
+      var curves = document.createElement('div');
+      curves.id = 'curves';
+      var mlii = document.createElement('div');
+      mlii.id = `chart_container_${patientId}_MLII`;
+      mlii.className = 'plot';
+      var v5 = document.createElement('div');
+      v5.id = `chart_container_${patientId}_V5`;
+      v5.className = 'plot';
+      curves.appendChild(mlii);
+      curves.appendChild(v5);
+
+      patientBlock.appendChild(header);
+      patientBlock.appendChild(parameters);
+      patientBlock.appendChild(curves);
+      console.log('patientBlock', patientBlock);
+
+      document.body.appendChild(patientBlock);
+
+      initChart(`${patientId}_MLII`);
+      initChart(`${patientId}_V5`);
+    }
+	
+	window.onload = function() {
+
+    var patientIds = [];
+	
+      var url = "ws://" + document.URL.substr(7).split('/')[0];    
+      console.log('url', url);
+      var wsCtor = window['MozWebSocket'] ? MozWebSocket : WebSocket;
+      this.socket = new wsCtor(url, 'ws');
+      console.log('this.socket', this.socket);
+
+      this.socket.onmessage = function(message) {
+        try {
+          var payload = JSON.parse(message.data);
+          
+          var patientId = payload.data['id'];
+          
+          //register possible new data source
+          if(patientIds.indexOf(patientId) === -1) {
+            patientIds.push(patientId);
+            // console.log(patientIds);
+            generatePatientHtml(patientId);
+          }
+
+          // console.log("Message: ", payload);
+          // Process message...
+          if (payload.type === 'stream') {
+            if ('hr' in payload.data) {
+              document.getElementById(`${patientId}_hr_value`).innerHTML = payload.data.hr;
+            }	
+            if ('MLII' in payload.data) {
+              console.log('id: ', patientId, 'MLII length: ', payload.data['MLII'].length);
+              updateChart(`${patientId}_MLII`, payload.data['MLII']);
+            }
+            if ('V5' in payload.data) {
+              console.log('id: ', patientId, 'V5 length: ', payload.data['V5'].length);
+              updateChart(`${patientId}_V5`, payload.data['V5']);
+            }
+          }
+	  	
+        } catch(e) { 
+	      // do nothing
+	    }
+	  };
+      this.socket.onclose = function() {
+        console.log("WebSocket Connection Closed");
+      };
+	  
+	}
+  </script>
+</head>
+<body>
+  <h1>Patient distributed monitoring system - WebSocket client PoC</h1>
+</body>
+</html>

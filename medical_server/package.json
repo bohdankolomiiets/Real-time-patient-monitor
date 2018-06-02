@@ -1,0 +1,19 @@
+{
+  "name": "lab_1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "canvasjs": "^1.8.1",
+    "express": "^4.16.3",
+    "mongodb": "^3.1.0-beta4",
+    "msexcel-builder": "0.0.2",
+    "websocket": "^1.0.24"
+  }
+}

@@ -1,0 +1,13 @@
+.patient-block {
+    display: block; 
+    border-style: solid; 
+    border-width: 1px; 
+    border-color: black; 
+    padding: 5px; 
+    margin: 5px;
+}
+
+.plot {
+    height: 300px;
+    width:100%;
+}
